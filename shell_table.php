@@ -5,6 +5,10 @@
  *  目的是为了打印出一个shell终端的表格，最终希望类似下面这样
  * 	得到正确的宽度值
  *	将表格的宽度值对齐
+ *	可以设置表格边框和角落样式
+ *
+ *	@todo 表项居中
+ *	@todo 表项中含有中文的话在终端中一个汉字会占用两个宽度，而copy到其他地方一个汉字会占用少于两个宽度，所以会出现显示并不对齐的问题
  *
  *	flags参数为数据收发提供了额外的控制，包括以下几个值或者互相的或
  *	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -27,9 +31,9 @@
  *  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  *	|	MSG_NOSIGNAL   |                            							|	Y	|    N   |
  *  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *
  */
 
-error_reporting(0);
 class shell_table{
 
 	/* 数据表项目与表格左右边界的间距 */
@@ -38,8 +42,14 @@ class shell_table{
 	/* 注释间距 */
 	private $annotation_space = ' ';
 
-	/* 表格体 */
+	/* 最终生成的表格体 */
 	private $tbl_body = '';
+
+	/* 指定表格边框样式 */
+	private $tbl_border_style = "-";
+
+	/* 可以指定表格交叉点的边角样式 */
+	private $tbl_border_corner_style = "+";
 
 	/* 每一项的最大长度 */
 	private $tbl_column_width_max = 30;
@@ -76,6 +86,19 @@ class shell_table{
 		$current_row_str = '';
 		$current_row_str_width = 0;
 
+		//确定了每一列的长度之后可以确定边框的样式了
+		$row_width = 0;
+		foreach ($tbl_column_width as $v) {		
+			$row_width += $v;	//求出确定好的行的总长度
+		}
+		$tpl_border = str_repeat($this->tbl_border_style, $row_width);
+		$tpl_border = substr_replace($tpl_border, $this->tbl_border_corner_style, 0, 1);		//第一行的边框
+		foreach ($tbl_column_width as $v) {
+			$column_index += $v;
+			$tpl_border = substr_replace($tpl_border, $this->tbl_border_corner_style, $column_index, 1);	//中间行的边框
+		}
+		$column_index = 0;
+
 		//真正的组织表格
 		foreach ($arr as $row) {
 			$current_row_str = '';
@@ -83,19 +106,17 @@ class shell_table{
 			foreach ($row as $v) {
 				$current_item_str = $this->getItem($v);
 				$current_item_str_width = $this->getStrWidth($current_item_str);
-				$current_item_str .= str_repeat(' ', $tbl_column_width[$column_index] - $current_item_str_width);	//将长度不够的位置补空格
+				$current_item_str .= str_repeat(' ', $tbl_column_width[$column_index] - $current_item_str_width);	//将表项中长度不够的位置补空格
 				$current_row_str .= $current_item_str;
 				$column_index++;
 			}
 			$current_row_str = $current_row_str . '|';
 			$final_row_str = $row_prefix . $current_row_str;
-			
-			$row_len = $this->getStrWidth($current_row_str);
-			$body .= $row_prefix . str_repeat('+', $row_len) . PHP_EOL;
-			$body .= $final_row_str . PHP_EOL;
+			$body .= $row_prefix . $tpl_border . PHP_EOL;	//构造上边框
+			$body .= $final_row_str . PHP_EOL;				//嵌入表项内容
 			
 		}
-		$body .= $row_prefix . str_repeat('+', $row_len) . PHP_EOL;
+		$body .= $row_prefix . $tpl_border . PHP_EOL;
 
 		$this->tbl_body .= $body_header . $body . $body_footer;
 	}
@@ -125,7 +146,7 @@ class shell_table{
 			if(ord(substr($str, $i, 1)) > 127){	//可能是汉字
 				//如果发现时汉字，则赋予汉字宽度，并且遍历索引前进两位
 				$width += $chinese;
-				$i++;$i++;
+				$i++;$i++;		//因为一个中文汉字占用三个字节，所以前进两位
 			}else{
 				$width += $alphanumber;
 			}
@@ -137,27 +158,16 @@ class shell_table{
 	public function showTable(){
 		echo $this->tbl_body;
 	}
+
+	/* 设置边框属性 */
+	public function setTableBorder($style){
+		$this->tbl_border_style = $style;
+	}
+
+	/* 设置表的交叉点的边角样式 */
+	public function setTableBorderCornerStyle($style){
+		$this->tbl_border_corner_style = $style;
+	}
 }
-
-$title = array(
-	array('选项名', '含义', 'send', 'recv')
-);
-
-$arr = array(
-    array('MSG_CONFIRM','指示数据链路层协议持续监听对方的回应，直到得到答复，它仅能用于SOCK_DGRAM和SOCK_RAW类型的socket','Y','N'), 
-    array('MSG_DONTROUTE','不看路由表，直接将数据发送给本地局域网络内的主机，这表示发送者确切地知道目标主机就在本地网络上','Y','N'), 
-    array('MSG_DONTWAIT','对socket的此次操作将是非阻塞的','Y','Y'),
-    array('MSG_MORE','告诉内核应用程序还有更多数据要发送，内核将超时等待新数据写入TCP发送缓冲区后一并发送，这样可以防止TCP发送过多小的报文段，从而提高传输效率','Y','N'),
-    array('MSG_WAITALL','读操作仅在读取到指定数量的字节后才返回','N','Y'),
-    array('MSG_PEEK','窥探缓存中的数据，此次读操作不会导致这些数据被清楚','N','Y'),
-    array('MSG_OOB','发送或接收紧急数据','Y','Y'),
-    array('MSG_NOSIGNAL','往读端关闭的管道或者socket接连中写数据时不引发SIGPIPE信号','Y','N'),
-);
-
-$arr = array_merge($title, $arr);
-
-$table = new shell_table();
-$table -> createTable($arr);
-$table -> showTable();
 
 
