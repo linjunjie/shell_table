@@ -2,6 +2,7 @@
 
 /**
  *  目的是为了打印出一个shell终端的表格，最终希望类似下面这样	2016/03/22
+ * 	得到正确的宽度值
  *
  *	flags参数为数据收发提供了额外的控制，包括以下几个值或者互相的或
  *	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -27,8 +28,11 @@
  */
 class shell_table{
 
-	/* 占位符 */
+	/* 数据表项目与表格左右边界的间距 */
 	private $tbl_space = '  ';
+
+	/* 注释间距 */
+	private $annotation_space = ' ';
 
 	/* 表格体 */
 	private $tbl_body = '';
@@ -40,18 +44,21 @@ class shell_table{
 
 	public function createTable($arr){
 		$body_header = $body = $body_footer = '';
-		$row_prefix = '*' . $this->tbl_space;
+		$current_row_str = '';		//当前行内容
+		$final_row_str = '';
+		$row_prefix = '*' . $this->annotation_space;
 		//组织表格
 		foreach ($arr as $row) {
-			$row_str = $row_prefix;
+			$current_row_str = '';
 			foreach ($row as $v) {
-				$row_str .= $this->getItem($v);
+				$current_row_str .= $this->getItem($v);
 			}
-			$row_str .= '|';
-			$row_len = strlen($row_str);
-
+			$current_row_str = $current_row_str . '|';
+			$final_row_str = $row_prefix . $current_row_str;
+			
+			$row_len = $this->getStrWidth($current_row_str);
 			$body .= $row_prefix . str_repeat('+', $row_len) . PHP_EOL;
-			$body .= $row_str . PHP_EOL;
+			$body .= $final_row_str . PHP_EOL;
 			
 		}
 		$body .= $row_prefix . str_repeat('+', $row_len) . PHP_EOL;
@@ -62,10 +69,36 @@ class shell_table{
 	/* 得到加工之后的每一项 */
 	function getItem($item){
 		$new_item = '|';
-		$new_item .= $this->tbl_space . $this->tbl_space;
+		$new_item .= $this->tbl_space;
 		$new_item .= $item;
-		$new_item .= $this->tbl_space . $this->tbl_space;
+		$new_item .= $this->tbl_space;
 		return $new_item;
+	}
+
+	/**
+	 * 得到字符串的实际宽度值
+	 *
+	 * 假设宽度单位是1kd
+	 * 那么字符串中汉字的宽带大概是2kd，数字和字符的宽度大概是1kd
+	 * 
+	 */
+	function getStrWidth($str){
+		$width = 0;
+		$alphanumber = 1;
+		$chinese = 2;
+
+		for($i=0; $i<strlen($str); $i++){
+			if(ord(substr($str, $i, 1)) > 127){	//可能是汉字
+				//如果发现时汉字，则赋予汉字宽度，并且遍历索引前进两位
+				$width += $chinese;
+				$i++;
+				$i++;
+			}else{
+				$width += $alphanumber;
+			}
+		}
+
+		return $width;
 	}
 
 	public function showTable(){
@@ -87,9 +120,6 @@ $arr = array(
     array('MSG_OOB','发送或接收紧急数据','Y','Y'),
     array('MSG_NOSIGNAL','往读端关闭的管道或者socket接连中写数据时不引发SIGPIPE信号','Y','N'),
 );
-
-$arr = array_merge($title, $arr);
-
 
 $table = new shell_table();
 $table -> createTable($arr);
