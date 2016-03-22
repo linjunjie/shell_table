@@ -1,8 +1,10 @@
 <?php
 
 /**
- *  目的是为了打印出一个shell终端的表格，最终希望类似下面这样	2016/03/22
+ * 	2016/03/22
+ *  目的是为了打印出一个shell终端的表格，最终希望类似下面这样
  * 	得到正确的宽度值
+ *	将表格的宽度值对齐
  *
  *	flags参数为数据收发提供了额外的控制，包括以下几个值或者互相的或
  *	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -26,6 +28,8 @@
  *	|	MSG_NOSIGNAL   |                            							|	Y	|    N   |
  *  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  */
+
+error_reporting(0);
 class shell_table{
 
 	/* 数据表项目与表格左右边界的间距 */
@@ -40,18 +44,48 @@ class shell_table{
 	/* 每一项的最大长度 */
 	private $tbl_column_width_max = 30;
 
-	private $tbl_column_width = 20;
-
 	public function createTable($arr){
 		$body_header = $body = $body_footer = '';
-		$current_row_str = '';		//当前行内容
-		$final_row_str = '';
+
+		$current_item_str = '';			//当前表项中字符串内容
+		$current_item_str_width = 0;	//当前表项中字符串内容占用的宽度
+		$current_row_str = '';			//当前行内容
+		$current_row_str_width = 0;		//当前行内容占用的宽度
+		$final_row_str = '';			//最终组织成型的行内容
+
+		$tbl_column_width = array();
 		$row_prefix = '*' . $this->annotation_space;
-		//组织表格
+
+		//第一次遍历表格所有数据以确定每一列的宽度
 		foreach ($arr as $row) {
 			$current_row_str = '';
+			$column_index = 0;
 			foreach ($row as $v) {
-				$current_row_str .= $this->getItem($v);
+				$current_item_str = $this->getItem($v);		//得到此表项的字符串内容
+				$current_item_str_width = $this->getStrWidth($current_item_str);	//表项的实际占用宽度
+				if($tbl_column_width[$column_index] < $current_item_str_width){		//如果不是最大宽度，则保存
+					$tbl_column_width[$column_index] = $current_item_str_width;		
+				}
+				$column_index++;
+			}			
+		}
+		//所有使用的变量回收
+		$column_index = 0;
+		$current_item_str = '';
+		$current_item_str_width = 0;
+		$current_row_str = '';
+		$current_row_str_width = 0;
+
+		//真正的组织表格
+		foreach ($arr as $row) {
+			$current_row_str = '';
+			$column_index = 0;
+			foreach ($row as $v) {
+				$current_item_str = $this->getItem($v);
+				$current_item_str_width = $this->getStrWidth($current_item_str);
+				$current_item_str .= str_repeat(' ', $tbl_column_width[$column_index] - $current_item_str_width);	//将长度不够的位置补空格
+				$current_row_str .= $current_item_str;
+				$column_index++;
 			}
 			$current_row_str = $current_row_str . '|';
 			$final_row_str = $row_prefix . $current_row_str;
@@ -66,7 +100,7 @@ class shell_table{
 		$this->tbl_body .= $body_header . $body . $body_footer;
 	}
 
-	/* 得到加工之后的每一项 */
+	/* 得到加工之后的每一个表项 */
 	function getItem($item){
 		$new_item = '|';
 		$new_item .= $this->tbl_space;
@@ -91,8 +125,7 @@ class shell_table{
 			if(ord(substr($str, $i, 1)) > 127){	//可能是汉字
 				//如果发现时汉字，则赋予汉字宽度，并且遍历索引前进两位
 				$width += $chinese;
-				$i++;
-				$i++;
+				$i++;$i++;
 			}else{
 				$width += $alphanumber;
 			}
@@ -120,6 +153,8 @@ $arr = array(
     array('MSG_OOB','发送或接收紧急数据','Y','Y'),
     array('MSG_NOSIGNAL','往读端关闭的管道或者socket接连中写数据时不引发SIGPIPE信号','Y','N'),
 );
+
+$arr = array_merge($title, $arr);
 
 $table = new shell_table();
 $table -> createTable($arr);
